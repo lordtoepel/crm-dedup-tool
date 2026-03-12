@@ -1,0 +1,278 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import DuplicateCard from '@/components/DuplicateCard'
+import DuplicateDetail from '@/components/DuplicateDetail'
+
+interface Scan {
+  id: string
+  object_type: string
+  status: string
+  records_scanned: number
+  duplicates_found: number
+  created_at: string
+}
+
+interface DuplicateSet {
+  id: string
+  confidence: number
+  winner_record_id: string
+  loser_record_ids: string[]
+  winner_data: Record<string, unknown>
+  loser_data: Record<string, unknown>[]
+  merged_preview: Record<string, unknown>
+  excluded: boolean
+  merged: boolean
+}
+
+interface ReviewClientProps {
+  scan: Scan
+  userId: string
+}
+
+type ConfidenceFilter = 'all' | 'high' | 'medium' | 'low'
+
+export default function ReviewClient({ scan, userId }: ReviewClientProps) {
+  const router = useRouter()
+  const [duplicateSets, setDuplicateSets] = useState<DuplicateSet[]>([])
+  const [selectedSets, setSelectedSets] = useState<Set<string>>(new Set())
+  const [expandedSet, setExpandedSet] = useState<DuplicateSet | null>(null)
+  const [confidenceFilter, setConfidenceFilter] = useState<ConfidenceFilter>('all')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isMerging, setIsMerging] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+
+  useEffect(() => {
+    fetchDuplicates()
+  }, [page, scan.id])
+
+  const fetchDuplicates = async () => {
+    setIsLoading(true)
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/scan/${scan.id}/results?page=${page}&per_page=20`)
+
+      if (response.ok) {
+        const data = await response.json()
+        setDuplicateSets(data.duplicate_sets)
+        setTotalPages(data.total_pages)
+      }
+    } catch (error) {
+      console.error('Failed to fetch duplicates:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const toggleSelection = (setId: string) => {
+    const newSelected = new Set(selectedSets)
+    if (newSelected.has(setId)) {
+      newSelected.delete(setId)
+    } else {
+      newSelected.add(setId)
+    }
+    setSelectedSets(newSelected)
+  }
+
+  const selectAll = () => {
+    const filteredSets = getFilteredSets()
+    const allIds = new Set(filteredSets.filter(s => !s.excluded).map(s => s.id))
+    setSelectedSets(allIds)
+  }
+
+  const deselectAll = () => {
+    setSelectedSets(new Set())
+  }
+
+  const toggleExclude = async (setId: string, excluded: boolean) => {
+    // Optimistically update UI
+    setDuplicateSets(prev =>
+      prev.map(s => s.id === setId ? { ...s, excluded } : s)
+    )
+
+    // Update in backend (via Supabase directly or API)
+    // For now, just update locally - will be persisted when merge happens
+    if (excluded) {
+      setSelectedSets(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(setId)
+        return newSet
+      })
+    }
+  }
+
+  const handleMerge = async () => {
+    if (selectedSets.size === 0) return
+
+    setIsMerging(true)
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/merge/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scan_id: scan.id,
+          user_id: userId,
+          set_ids: Array.from(selectedSets),
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        router.push(`/merge/${data.merge_id}`)
+      }
+    } catch (error) {
+      console.error('Failed to start merge:', error)
+    } finally {
+      setIsMerging(false)
+    }
+  }
+
+  const getFilteredSets = () => {
+    return duplicateSets.filter(set => {
+      if (confidenceFilter === 'all') return true
+      if (confidenceFilter === 'high') return set.confidence >= 90
+      if (confidenceFilter === 'medium') return set.confidence >= 70 && set.confidence < 90
+      if (confidenceFilter === 'low') return set.confidence < 70
+      return true
+    })
+  }
+
+  const filteredSets = getFilteredSets()
+  const nonExcludedCount = filteredSets.filter(s => !s.excluded).length
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-6xl mx-auto py-8 px-4">
+        {/* Header */}
+        <div className="mb-6">
+          <button
+            onClick={() => router.push('/scan')}
+            className="text-sm text-gray-500 hover:text-gray-700 mb-4"
+          >
+            &larr; Back to scans
+          </button>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Review Duplicates</h1>
+              <p className="text-gray-600 mt-1">
+                Found {scan.duplicates_found} duplicate sets from {scan.records_scanned.toLocaleString()} {scan.object_type}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-500">Scan completed</p>
+              <p className="text-sm text-gray-500">
+                {new Date(scan.created_at).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters and Actions Bar */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            {/* Confidence Filter */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-500">Confidence:</label>
+              <select
+                value={confidenceFilter}
+                onChange={(e) => setConfidenceFilter(e.target.value as ConfidenceFilter)}
+                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm"
+              >
+                <option value="all">All</option>
+                <option value="high">High (90%+)</option>
+                <option value="medium">Medium (70-90%)</option>
+                <option value="low">Low (&lt;70%)</option>
+              </select>
+            </div>
+
+            {/* Selection Actions */}
+            <div className="flex items-center gap-2 border-l pl-4">
+              <button
+                onClick={selectAll}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Select all ({nonExcludedCount})
+              </button>
+              <span className="text-gray-300">|</span>
+              <button
+                onClick={deselectAll}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Deselect all
+              </button>
+            </div>
+          </div>
+
+          {/* Merge Button */}
+          <button
+            onClick={handleMerge}
+            disabled={selectedSets.size === 0 || isMerging}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isMerging
+              ? 'Starting merge...'
+              : `Merge ${selectedSets.size} selected`}
+          </button>
+        </div>
+
+        {/* Duplicate List */}
+        {isLoading ? (
+          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            Loading duplicates...
+          </div>
+        ) : filteredSets.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            No duplicates match the current filter.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredSets.map(set => (
+              <DuplicateCard
+                key={set.id}
+                duplicateSet={set}
+                isSelected={selectedSets.has(set.id)}
+                onToggleSelect={() => toggleSelection(set.id)}
+                onToggleExclude={(excluded) => toggleExclude(set.id, excluded)}
+                onExpand={() => setExpandedSet(set)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="mt-6 flex justify-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-4 py-2 border rounded-md disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="px-4 py-2 text-gray-600">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-4 py-2 border rounded-md disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        )}
+
+        {/* Detail Modal */}
+        {expandedSet && (
+          <DuplicateDetail
+            duplicateSet={expandedSet}
+            onClose={() => setExpandedSet(null)}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
