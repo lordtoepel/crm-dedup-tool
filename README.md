@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CRM Deduplication Tool
 
-## Getting Started
+A web application for detecting and merging duplicate records in HubSpot and Salesforce CRMs.
 
-First, run the development server:
+## Features
+
+- **Duplicate Detection**: Exact and fuzzy matching across contacts, companies, and deals
+- **Intelligent Winner Selection**: Configurable rules (oldest, most recent, most associations)
+- **Field Blending**: Winner fields with gap-filling from losers
+- **Bulk Merge**: Execute merges at scale with progress tracking
+- **Client Reports**: Downloadable PDF reports
+
+## Tech Stack
+
+- **Frontend**: Next.js 14, React, Tailwind CSS
+- **Backend**: Python FastAPI, Celery, RapidFuzz
+- **Database**: Supabase (PostgreSQL)
+- **Queue**: Redis
+- **Hosting**: Netlify (frontend), Railway (backend)
+
+## Local Development
+
+### Prerequisites
+
+- Node.js 20+
+- Python 3.11+
+- Redis (for background jobs)
+
+### Frontend
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Backend
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cd api
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Celery Worker
 
-## Learn More
+```bash
+cd api
+celery -A app.tasks.celery_app worker --loglevel=info
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Environment Variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+See `.env.local.example` (frontend) and `api/.env.example` (backend).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Database Setup
 
-## Deploy on Vercel
+Run the migration in Supabase SQL Editor:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+cat supabase/migrations/001_initial_schema.sql
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+Proprietary - LeanScale
