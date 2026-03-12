@@ -1,13 +1,14 @@
 """Celery application configuration."""
+import os
 from celery import Celery
-from app.config import get_settings
 
-settings = get_settings()
+# Use environment variable directly to avoid settings initialization issues
+redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 celery_app = Celery(
     "crm_dedup",
-    broker=settings.redis_url,
-    backend=settings.redis_url,
+    broker=redis_url,
+    backend=redis_url,
     include=["app.tasks.scan_tasks", "app.tasks.merge_tasks"],
 )
 
