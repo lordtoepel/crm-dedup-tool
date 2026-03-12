@@ -33,6 +33,14 @@ export async function updateSession(request: NextRequest) {
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
   // issues with users being randomly logged out.
 
+  // If there's a code param, redirect to auth callback to exchange it
+  const code = request.nextUrl.searchParams.get('code')
+  if (code && request.nextUrl.pathname !== '/auth/callback') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/callback'
+    return NextResponse.redirect(url)
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
