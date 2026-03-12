@@ -6,8 +6,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.services.supabase_client import get_supabase
-from app.services.hubspot import HubSpotService
-from app.services.hubspot_contacts import HubSpotContactsService
+from app.services.crm_factory import get_crm_services
 from app.services.dedup_engine import DuplicateDetector, WinnerSelector, FieldBlender
 
 router = APIRouter()
@@ -44,15 +43,10 @@ async def run_scan(scan_id: str, user_id: str, connection_id: str, config: dict)
             "started_at": datetime.utcnow().isoformat(),
         }).eq("id", scan_id).execute()
 
-        # Get HubSpot connection
-        hubspot_service = HubSpotService()
-        connection = await hubspot_service.get_connection(user_id)
+        # Get CRM services based on connection type
+        connection, contacts_service, _ = await get_crm_services(user_id, connection_id)
 
-        if not connection:
-            raise Exception("HubSpot connection not found")
-
-        # Initialize services
-        contacts_service = HubSpotContactsService(connection)
+        # Initialize dedup engine
         detector = DuplicateDetector(confidence_threshold=config["confidence_threshold"])
         winner_selector = WinnerSelector(config["winner_rules"])
         field_blender = FieldBlender()

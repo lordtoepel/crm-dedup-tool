@@ -6,8 +6,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.services.supabase_client import get_supabase
-from app.services.hubspot import HubSpotService
-from app.services.hubspot_merge import HubSpotMergeService
+from app.services.crm_factory import get_crm_services
 
 router = APIRouter()
 
@@ -31,15 +30,18 @@ async def run_merge(merge_id: str, user_id: str, scan_id: str, set_ids: List[str
             "started_at": datetime.utcnow().isoformat(),
         }).eq("id", merge_id).execute()
 
-        # Get HubSpot connection
-        hubspot_service = HubSpotService()
-        connection = await hubspot_service.get_connection(user_id)
+        # Get scan to find connection_id
+        scan_result = supabase.table("scans").select("connection_id").eq(
+            "id", scan_id
+        ).single().execute()
 
-        if not connection:
-            raise Exception("HubSpot connection not found")
+        if not scan_result.data:
+            raise Exception("Scan not found")
 
-        # Initialize merge service
-        merge_service = HubSpotMergeService(connection)
+        connection_id = scan_result.data["connection_id"]
+
+        # Get CRM services based on connection type
+        _, _, merge_service = await get_crm_services(user_id, connection_id)
 
         # Get duplicate sets to merge
         sets_result = supabase.table("duplicate_sets").select("*").in_(

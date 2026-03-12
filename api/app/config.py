@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     hubspot_client_secret: str
     hubspot_redirect_uri: str = "http://localhost:3000/api/hubspot/callback"
 
+    # Salesforce OAuth (optional - leave empty if not using Salesforce)
+    salesforce_client_id: str = ""
+    salesforce_client_secret: str = ""
+    salesforce_redirect_uri: str = "http://localhost:3000/api/salesforce/callback"
+
     # Encryption
     encryption_key: str  # 32-byte key for AES-256
 

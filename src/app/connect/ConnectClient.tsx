@@ -38,6 +38,17 @@ export default function ConnectClient({ user, existingConnection }: ConnectClien
     window.location.href = authUrl
   }
 
+  const handleSalesforceConnect = () => {
+    setIsLoading(true)
+    const clientId = process.env.NEXT_PUBLIC_SALESFORCE_CLIENT_ID
+    const redirectUri = `${window.location.origin}/api/salesforce/callback`
+    // Salesforce OAuth scopes for CRM access
+    const scopes = ['api', 'refresh_token', 'full'].join(' ')
+
+    const authUrl = `https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}`
+    window.location.href = authUrl
+  }
+
   const handleDisconnect = async () => {
     if (!existingConnection) return
     setIsLoading(true)
@@ -85,13 +96,15 @@ export default function ConnectClient({ user, existingConnection }: ConnectClien
             <div className="space-y-4">
               <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold">HS</span>
+                  <div className={`w-10 h-10 ${existingConnection.crm_type === 'salesforce' ? 'bg-blue-600' : 'bg-orange-500'} rounded-lg flex items-center justify-center`}>
+                    <span className="text-white font-bold">{existingConnection.crm_type === 'salesforce' ? 'SF' : 'HS'}</span>
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">HubSpot Connected</p>
+                    <p className="font-medium text-gray-900">
+                      {existingConnection.crm_type === 'salesforce' ? 'Salesforce' : 'HubSpot'} Connected
+                    </p>
                     <p className="text-sm text-gray-500">
-                      Portal ID: {existingConnection.portal_id || 'N/A'}
+                      {existingConnection.crm_type === 'salesforce' ? 'Org' : 'Portal'} ID: {existingConnection.portal_id || 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -134,15 +147,18 @@ export default function ConnectClient({ user, existingConnection }: ConnectClien
               </button>
 
               <button
-                disabled
-                className="w-full flex items-center justify-center gap-3 p-4 border-2 border-gray-200 rounded-lg opacity-50 cursor-not-allowed"
+                onClick={handleSalesforceConnect}
+                disabled={isLoading}
+                className="w-full flex items-center justify-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-50"
               >
                 <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold">SF</span>
                 </div>
                 <div className="text-left">
                   <p className="font-medium text-gray-900">Connect Salesforce</p>
-                  <p className="text-sm text-gray-500">Coming soon</p>
+                  <p className="text-sm text-gray-500">
+                    Authorize access to contacts, accounts, and opportunities
+                  </p>
                 </div>
               </button>
             </div>
