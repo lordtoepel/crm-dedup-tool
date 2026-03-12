@@ -65,3 +65,6 @@ celerybeat.pid
 .vscode/
 *.swp
 *.swo
+
+# Local Netlify folder
+.netlify

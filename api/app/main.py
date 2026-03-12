@@ -18,8 +18,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Next.js dev
-        "https://*.netlify.app",  # Netlify preview
-        # Add production domain here
+        "https://crm-dedup-tool.netlify.app",  # Production
+        "https://*.netlify.app",  # Netlify preview/deploy previews
     ],
     allow_credentials=True,
     allow_methods=["*"],
