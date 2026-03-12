@@ -5,7 +5,7 @@ FastAPI application for duplicate detection and merge operations.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import health, scan, merge, hubspot
+from app.routers import health, scan, merge, hubspot, reports
 
 app = FastAPI(
     title="CRM Dedup API",
@@ -31,6 +31,7 @@ app.include_router(health.router, tags=["Health"])
 app.include_router(hubspot.router, prefix="/hubspot", tags=["HubSpot"])
 app.include_router(scan.router, prefix="/scan", tags=["Scan"])
 app.include_router(merge.router, prefix="/merge", tags=["Merge"])
+app.include_router(reports.router, prefix="/reports", tags=["Reports"])
 
 
 @app.get("/")
