@@ -1,7 +1,14 @@
 """Scan endpoints for duplicate detection."""
-from fastapi import APIRouter, HTTPException
+import uuid
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
+
+from app.services.supabase_client import get_supabase
+from app.services.hubspot import HubSpotService
+from app.services.hubspot_contacts import HubSpotContactsService
+from app.services.dedup_engine import DuplicateDetector, WinnerSelector, FieldBlender
 
 router = APIRouter()
 
@@ -24,22 +31,209 @@ class ScanRequest(BaseModel):
     config: ScanConfig
 
 
+async def run_scan(scan_id: str, user_id: str, connection_id: str, config: dict):
+    """
+    Background task to run the duplicate detection scan.
+    """
+    supabase = get_supabase()
+
+    try:
+        # Update status to running
+        supabase.table("scans").update({
+            "status": "running",
+            "started_at": datetime.utcnow().isoformat(),
+        }).eq("id", scan_id).execute()
+
+        # Get HubSpot connection
+        hubspot_service = HubSpotService()
+        connection = await hubspot_service.get_connection(user_id)
+
+        if not connection:
+            raise Exception("HubSpot connection not found")
+
+        # Initialize services
+        contacts_service = HubSpotContactsService(connection)
+        detector = DuplicateDetector(confidence_threshold=config["confidence_threshold"])
+        winner_selector = WinnerSelector(config["winner_rules"])
+        field_blender = FieldBlender()
+
+        # Get total count for progress
+        total_contacts = await contacts_service.get_total_contacts()
+
+        # Fetch all contacts
+        contacts = []
+        records_scanned = 0
+
+        async def progress_callback(count: int):
+            nonlocal records_scanned
+            records_scanned = count
+            progress = min(int((count / max(total_contacts, 1)) * 50), 50)  # First 50% is fetching
+            supabase.table("scans").update({
+                "progress": progress,
+                "records_scanned": count,
+            }).eq("id", scan_id).execute()
+
+        async for contact in contacts_service.get_all_contacts(progress_callback):
+            contacts.append(contact)
+
+        # Update progress - fetching complete
+        supabase.table("scans").update({
+            "progress": 50,
+            "records_scanned": len(contacts),
+        }).eq("id", scan_id).execute()
+
+        # Find duplicates (this is the CPU-intensive part)
+        duplicate_sets = detector.find_duplicates(contacts)
+
+        # Process each duplicate set
+        processed_sets = []
+        for i, dup_set in enumerate(duplicate_sets):
+            # Select winner
+            all_contacts = [dup_set.winner] + dup_set.losers
+            winner, losers = winner_selector.select_winner(all_contacts)
+
+            # Blend fields
+            merged_preview = field_blender.blend(winner, losers)
+
+            # Store in database
+            set_id = str(uuid.uuid4())
+            supabase.table("duplicate_sets").insert({
+                "id": set_id,
+                "scan_id": scan_id,
+                "confidence": dup_set.confidence,
+                "winner_record_id": winner.id,
+                "loser_record_ids": [l.id for l in losers],
+                "winner_data": winner.model_dump(mode="json"),
+                "loser_data": [l.model_dump(mode="json") for l in losers],
+                "merged_preview": merged_preview,
+            }).execute()
+
+            processed_sets.append(set_id)
+
+            # Update progress (50-100% is processing)
+            progress = 50 + int((i / max(len(duplicate_sets), 1)) * 50)
+            supabase.table("scans").update({
+                "progress": progress,
+                "duplicates_found": i + 1,
+            }).eq("id", scan_id).execute()
+
+        # Mark scan as complete
+        supabase.table("scans").update({
+            "status": "completed",
+            "progress": 100,
+            "duplicates_found": len(duplicate_sets),
+            "completed_at": datetime.utcnow().isoformat(),
+        }).eq("id", scan_id).execute()
+
+    except Exception as e:
+        # Mark scan as failed
+        supabase.table("scans").update({
+            "status": "failed",
+            "error_message": str(e),
+            "completed_at": datetime.utcnow().isoformat(),
+        }).eq("id", scan_id).execute()
+        raise
+
+
 @router.post("/start")
-async def start_scan(request: ScanRequest):
+async def start_scan(request: ScanRequest, background_tasks: BackgroundTasks):
     """Start a new duplicate detection scan."""
-    # TODO: Implement scan initiation
-    raise HTTPException(status_code=501, detail="Not implemented")
+    supabase = get_supabase()
+
+    # Validate connection exists
+    conn_result = supabase.table("crm_connections").select("*").eq(
+        "id", request.connection_id
+    ).eq("user_id", request.user_id).single().execute()
+
+    if not conn_result.data:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    # Create scan record
+    scan_id = str(uuid.uuid4())
+    scan_data = {
+        "id": scan_id,
+        "user_id": request.user_id,
+        "connection_id": request.connection_id,
+        "object_type": request.config.object_type,
+        "status": "pending",
+        "config": request.config.model_dump(),
+        "progress": 0,
+        "records_scanned": 0,
+        "duplicates_found": 0,
+    }
+
+    supabase.table("scans").insert(scan_data).execute()
+
+    # Start background task
+    config_dict = request.config.model_dump()
+    config_dict["winner_rules"] = [r.model_dump() for r in request.config.winner_rules]
+
+    background_tasks.add_task(
+        run_scan,
+        scan_id,
+        request.user_id,
+        request.connection_id,
+        config_dict,
+    )
+
+    return {"scan_id": scan_id, "status": "pending"}
 
 
 @router.get("/{scan_id}/status")
 async def get_scan_status(scan_id: str):
     """Get current scan progress and status."""
-    # TODO: Implement status check
-    raise HTTPException(status_code=501, detail="Not implemented")
+    supabase = get_supabase()
+
+    result = supabase.table("scans").select("*").eq("id", scan_id).single().execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    scan = result.data
+    return {
+        "id": scan["id"],
+        "status": scan["status"],
+        "progress": scan["progress"],
+        "records_scanned": scan["records_scanned"],
+        "duplicates_found": scan["duplicates_found"],
+        "error_message": scan.get("error_message"),
+        "started_at": scan.get("started_at"),
+        "completed_at": scan.get("completed_at"),
+    }
 
 
 @router.get("/{scan_id}/results")
 async def get_scan_results(scan_id: str, page: int = 1, per_page: int = 50):
     """Get paginated duplicate sets from completed scan."""
-    # TODO: Implement results retrieval
-    raise HTTPException(status_code=501, detail="Not implemented")
+    supabase = get_supabase()
+
+    # Get scan to verify it exists and is completed
+    scan_result = supabase.table("scans").select("*").eq("id", scan_id).single().execute()
+
+    if not scan_result.data:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    scan = scan_result.data
+
+    # Get duplicate sets with pagination
+    offset = (page - 1) * per_page
+    results = supabase.table("duplicate_sets").select("*").eq(
+        "scan_id", scan_id
+    ).order("confidence", desc=True).range(offset, offset + per_page - 1).execute()
+
+    # Get total count
+    count_result = supabase.table("duplicate_sets").select(
+        "id", count="exact"
+    ).eq("scan_id", scan_id).execute()
+
+    total = count_result.count if count_result.count else 0
+
+    return {
+        "scan_id": scan_id,
+        "scan_status": scan["status"],
+        "total_duplicates": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
+        "duplicate_sets": results.data or [],
+    }
