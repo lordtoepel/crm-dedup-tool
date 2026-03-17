@@ -23,7 +23,10 @@ export default function LoginPage() {
     })
 
     if (error) {
-      setMessage({ type: 'error', text: error.message })
+      const text = error.message.toLowerCase().includes('rate limit')
+        ? 'Too many requests. Please wait a few minutes before trying again.'
+        : error.message
+      setMessage({ type: 'error', text })
     } else {
       setMessage({ type: 'success', text: 'Check your email for the login link!' })
       setEmail('')
