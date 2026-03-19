@@ -23,6 +23,8 @@ export default function MergePage({ params }: MergePageProps) {
   const router = useRouter()
   const [merge, setMerge] = useState<MergeStatus | null>(null)
   const [isPolling, setIsPolling] = useState(true)
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+  const [reportError, setReportError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isPolling) return
@@ -164,8 +166,38 @@ export default function MergePage({ params }: MergePageProps) {
                 onClick={() => router.push('/reports')}
                 className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
               >
-                View Report
+                View Reports
               </button>
+              <button
+                onClick={async () => {
+                  setIsGeneratingReport(true)
+                  setReportError(null)
+                  try {
+                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+                    const response = await fetch(
+                      `${apiUrl}/reports/generate/${mergeId}?user_id=${encodeURIComponent(merge.id)}`,
+                      { method: 'POST' }
+                    )
+                    if (response.ok) {
+                      router.push('/reports')
+                    } else {
+                      const data = await response.json().catch(() => ({}))
+                      setReportError(data.detail || 'Failed to generate report')
+                    }
+                  } catch {
+                    setReportError('Failed to generate report')
+                  } finally {
+                    setIsGeneratingReport(false)
+                  }
+                }}
+                disabled={isGeneratingReport}
+                className="w-full py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50"
+              >
+                {isGeneratingReport ? 'Generating...' : 'Regenerate Report'}
+              </button>
+              {reportError && (
+                <p className="text-sm text-red-600">{reportError}</p>
+              )}
               <button
                 onClick={() => router.push('/scan')}
                 className="w-full py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"

@@ -1,5 +1,5 @@
 """Report generation service."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import io
 
@@ -71,7 +71,7 @@ class ReportService:
 
         # Build report data
         report_data = {
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "crm_type": connection.get("crm_type", "unknown"),
             "portal_id": connection.get("portal_id"),
             "scan": {

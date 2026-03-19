@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from app.services.supabase_client import get_supabase
 from app.services.crm_factory import get_crm_services
+from app.services.reports import ReportService
 
 router = APIRouter()
 
@@ -120,6 +121,15 @@ async def run_merge(merge_id: str, user_id: str, scan_id: str, set_ids: List[str
             "status": final_status,
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", merge_id).execute()
+
+        # Auto-generate report on successful completion
+        if final_status == "completed":
+            try:
+                report_service = ReportService()
+                await report_service.generate_report(merge_id, user_id)
+            except Exception as report_err:
+                # Don't fail the merge if report generation fails
+                print(f"Report generation failed: {report_err}")
 
     except Exception as e:
         # Mark merge as failed
