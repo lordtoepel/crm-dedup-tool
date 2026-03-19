@@ -326,40 +326,46 @@ class WinnerSelector:
 class FieldBlender:
     """
     Blends fields from winner and losers to create the merged record.
+
+    The merged preview uses Contact model field names (not CRM-specific
+    property names) so the frontend can display them consistently.
     """
 
-    # Fields that can be filled from losers if winner's is blank
-    # These use the Contact model field names; CRM-specific property name
-    # mapping happens in the merge services (hubspot_merge / salesforce_merge).
-    FILLABLE_FIELDS = [
-        "phone", "company", "jobtitle",
-        # Add more as needed
+    # Editable fields that can be sourced from any record in the set.
+    EDITABLE_FIELDS = [
+        "email", "first_name", "last_name", "phone", "company", "job_title",
     ]
 
     def blend(self, winner: Contact, losers: list[Contact]) -> dict:
         """
-        Create merged record preview.
+        Create merged record preview using Contact model field names.
 
         Strategy:
         - Winner's fields take precedence
         - Fill blank fields from losers (in order)
-
-        Args:
-            winner: The winning contact
-            losers: List of losing contacts
+        - Include metadata fields from the winner
 
         Returns:
-            Dict representing the merged record
+            Dict with Contact model field names as keys.
         """
-        merged = winner.raw_properties.copy()
+        merged: dict = {}
+
+        # Start with winner's values for all display fields
+        for field in self.EDITABLE_FIELDS:
+            merged[field] = getattr(winner, field, None) or ""
 
         # Fill gaps from losers
-        for field in self.FILLABLE_FIELDS:
-            if not merged.get(field):
+        for field in self.EDITABLE_FIELDS:
+            if not merged[field]:
                 for loser in losers:
-                    value = loser.raw_properties.get(field)
+                    value = getattr(loser, field, None)
                     if value:
                         merged[field] = value
                         break
+
+        # Include metadata from winner (read-only, not editable)
+        merged["created_at"] = winner.created_at.isoformat() if winner.created_at else None
+        merged["updated_at"] = winner.updated_at.isoformat() if winner.updated_at else None
+        merged["association_count"] = winner.association_count
 
         return merged

@@ -92,9 +92,6 @@ export default function ReviewClient({ scan, userId }: ReviewClientProps) {
     setDuplicateSets(prev =>
       prev.map(s => s.id === setId ? { ...s, excluded } : s)
     )
-
-    // Update in backend (via Supabase directly or API)
-    // For now, just update locally - will be persisted when merge happens
     if (excluded) {
       setSelectedSets(prev => {
         const newSet = new Set(prev)
@@ -102,6 +99,14 @@ export default function ReviewClient({ scan, userId }: ReviewClientProps) {
         return newSet
       })
     }
+
+    // Persist to backend
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    await fetch(`${apiUrl}/scan/${scan.id}/duplicate-sets/${setId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ excluded }),
+    }).catch(err => console.error('Failed to persist exclude:', err))
   }
 
   const handleMerge = async () => {
@@ -280,7 +285,14 @@ export default function ReviewClient({ scan, userId }: ReviewClientProps) {
         {expandedSet && (
           <DuplicateDetail
             duplicateSet={expandedSet}
+            scanId={scan.id}
             onClose={() => setExpandedSet(null)}
+            onPreviewUpdated={(setId, preview) => {
+              setDuplicateSets(prev =>
+                prev.map(s => s.id === setId ? { ...s, merged_preview: preview } : s)
+              )
+              setExpandedSet(prev => prev ? { ...prev, merged_preview: preview } : null)
+            }}
           />
         )}
       </div>

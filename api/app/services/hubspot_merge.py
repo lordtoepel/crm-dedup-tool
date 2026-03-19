@@ -70,6 +70,35 @@ class HubSpotMergeService:
                     "error": f"HubSpot merge failed: {response.status_code} - {response.text}",
                 }
 
+    # HubSpot read-only properties that cannot be set via the API
+    READ_ONLY_PROPERTIES = {
+        "hs_object_id", "createdate", "lastmodifieddate", "hs_lastmodifieddate",
+        "hs_createdate", "hs_is_contact", "hs_pipeline", "hs_lifecyclestage_lead_date",
+        "hs_lifecyclestage_marketingqualifiedlead_date",
+        "hs_lifecyclestage_salesqualifiedlead_date",
+        "hs_lifecyclestage_opportunity_date", "hs_lifecyclestage_customer_date",
+        "hs_lifecyclestage_evangelist_date", "hs_lifecyclestage_subscriber_date",
+        "hs_lifecyclestage_other_date", "num_associated_deals", "num_contacted_times",
+        "hs_analytics_source", "hs_analytics_source_data_1", "hs_analytics_source_data_2",
+        "hs_analytics_num_page_views", "hs_analytics_num_visits",
+        "hs_analytics_num_event_completions", "hs_analytics_first_url",
+        "hs_analytics_last_url", "hs_analytics_average_page_views",
+        "hs_analytics_first_timestamp", "hs_analytics_last_timestamp",
+        "hs_analytics_first_visit_timestamp", "hs_analytics_last_visit_timestamp",
+        "hs_email_optout", "hs_all_contact_vids", "hs_merged_object_ids",
+        "hs_calculated_merged_vids", "hs_is_unworked",
+    }
+
+    # Map Contact model field names to HubSpot property names
+    FIELD_TO_HUBSPOT = {
+        "email": "email",
+        "first_name": "firstname",
+        "last_name": "lastname",
+        "phone": "phone",
+        "company": "company",
+        "job_title": "jobtitle",
+    }
+
     async def update_contact(
         self,
         contact_id: str,
@@ -79,14 +108,25 @@ class HubSpotMergeService:
         Update a contact's properties.
 
         Used to apply blended field values to the winner.
-
-        Args:
-            contact_id: HubSpot ID of the contact
-            properties: Dict of property name -> value to update
-
-        Returns:
-            Dict with update result
+        Filters out read-only properties and maps Contact model
+        field names to HubSpot property names.
         """
+        # Map field names and filter out read-only / metadata fields
+        hs_properties = {}
+        for key, value in properties.items():
+            # Map Contact model field name -> HubSpot property name
+            hs_key = self.FIELD_TO_HUBSPOT.get(key, key)
+            # Skip read-only, metadata, and empty values
+            if hs_key in self.READ_ONLY_PROPERTIES:
+                continue
+            if key in ("created_at", "updated_at", "association_count", "id"):
+                continue
+            if value is not None and value != "":
+                hs_properties[hs_key] = value
+
+        if not hs_properties:
+            return {"success": True}
+
         async with httpx.AsyncClient() as client:
             response = await client.patch(
                 f"{self.BASE_URL}/crm/v3/objects/contacts/{contact_id}",
@@ -94,7 +134,7 @@ class HubSpotMergeService:
                     "Authorization": f"Bearer {self.access_token}",
                     "Content-Type": "application/json",
                 },
-                json={"properties": properties},
+                json={"properties": hs_properties},
             )
 
             if response.status_code == 200:

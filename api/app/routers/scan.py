@@ -231,3 +231,32 @@ async def get_scan_results(scan_id: str, page: int = 1, per_page: int = 50):
         "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
         "duplicate_sets": results.data or [],
     }
+
+
+class UpdateDuplicateSetRequest(BaseModel):
+    excluded: Optional[bool] = None
+    merged_preview: Optional[dict] = None
+
+
+@router.patch("/{scan_id}/duplicate-sets/{set_id}")
+async def update_duplicate_set(scan_id: str, set_id: str, request: UpdateDuplicateSetRequest):
+    """Update a duplicate set's excluded status or merged preview."""
+    supabase = get_supabase()
+
+    update_data = {}
+    if request.excluded is not None:
+        update_data["excluded"] = request.excluded
+    if request.merged_preview is not None:
+        update_data["merged_preview"] = request.merged_preview
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    result = supabase.table("duplicate_sets").update(
+        update_data
+    ).eq("id", set_id).eq("scan_id", scan_id).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Duplicate set not found")
+
+    return result.data[0]
