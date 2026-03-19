@@ -2,11 +2,16 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
 
+  // Use configured site URL to avoid Netlify deploy-preview URL mismatch.
+  // Netlify serverless functions may report a deploy-specific origin that
+  // doesn't match the redirect_uri HubSpot expects.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.URL || new URL(request.url).origin
+
   if (!code) {
-    return NextResponse.redirect(`${origin}/connect?error=no_code`)
+    return NextResponse.redirect(`${siteUrl}/connect?error=no_code`)
   }
 
   // Get current user
@@ -14,7 +19,7 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    return NextResponse.redirect(`${origin}/login`)
+    return NextResponse.redirect(`${siteUrl}/login`)
   }
 
   try {
@@ -27,7 +32,7 @@ export async function GET(request: Request) {
       },
       body: JSON.stringify({
         code,
-        redirect_uri: `${origin}/api/hubspot/callback`,
+        redirect_uri: `${siteUrl}/api/hubspot/callback`,
         user_id: user.id,
       }),
     })
@@ -35,13 +40,13 @@ export async function GET(request: Request) {
     if (!response.ok) {
       const error = await response.json()
       console.error('Token exchange failed:', error)
-      return NextResponse.redirect(`${origin}/connect?error=token_exchange_failed`)
+      return NextResponse.redirect(`${siteUrl}/connect?error=token_exchange_failed`)
     }
 
     // Success - redirect to connect page
-    return NextResponse.redirect(`${origin}/connect?connected=true`)
+    return NextResponse.redirect(`${siteUrl}/connect?connected=true`)
   } catch (error) {
     console.error('HubSpot callback error:', error)
-    return NextResponse.redirect(`${origin}/connect?error=connection_failed`)
+    return NextResponse.redirect(`${siteUrl}/connect?error=connection_failed`)
   }
 }
