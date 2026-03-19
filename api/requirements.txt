@@ -10,10 +10,9 @@ redis==5.0.1
 # Fuzzy matching
 rapidfuzz==3.6.1
 
-# Database — pin gotrue to avoid proxy kwarg incompatibility with httpx
-supabase==2.3.0
-gotrue==2.8.0
-httpx==0.26.0
+# Database — httpx 0.28+ supports proxy kwarg that gotrue 2.9+ uses
+supabase==2.3.5
+httpx==0.28.1
 
 # HTTP client for CRM APIs (version set above for supabase compat)
 
