@@ -41,6 +41,7 @@ export default function ReviewClient({ scan, userId }: ReviewClientProps) {
   const [confidenceFilter, setConfidenceFilter] = useState<ConfidenceFilter>('all')
   const [isLoading, setIsLoading] = useState(true)
   const [isMerging, setIsMerging] = useState(false)
+  const [mergeError, setMergeError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
@@ -107,6 +108,7 @@ export default function ReviewClient({ scan, userId }: ReviewClientProps) {
     if (selectedSets.size === 0) return
 
     setIsMerging(true)
+    setMergeError(null)
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/merge/execute`, {
@@ -122,9 +124,13 @@ export default function ReviewClient({ scan, userId }: ReviewClientProps) {
       if (response.ok) {
         const data = await response.json()
         router.push(`/merge/${data.merge_id}`)
+      } else {
+        const data = await response.json().catch(() => ({}))
+        setMergeError(data.detail || 'Failed to start merge. Please try again.')
       }
     } catch (error) {
       console.error('Failed to start merge:', error)
+      setMergeError('Network error. Please check your connection and try again.')
     } finally {
       setIsMerging(false)
     }
@@ -205,6 +211,11 @@ export default function ReviewClient({ scan, userId }: ReviewClientProps) {
               </button>
             </div>
           </div>
+
+          {/* Merge Error */}
+          {mergeError && (
+            <div className="text-sm text-red-600 mr-2">{mergeError}</div>
+          )}
 
           {/* Merge Button */}
           <button

@@ -1,5 +1,6 @@
 """Salesforce contacts fetching service."""
 import httpx
+from urllib.parse import quote
 from typing import AsyncGenerator, Optional
 from datetime import datetime
 
@@ -33,7 +34,7 @@ class SalesforceContactsService:
         """
 
         total_fetched = 0
-        next_url = f"{self.instance_url}/services/data/v59.0/query?q={query}"
+        next_url = f"{self.instance_url}/services/data/v59.0/query?q={quote(query.strip())}"
 
         async with httpx.AsyncClient() as client:
             while next_url:

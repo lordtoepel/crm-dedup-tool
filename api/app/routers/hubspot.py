@@ -1,6 +1,7 @@
 """HubSpot OAuth and API endpoints."""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 
 from app.services.hubspot import HubSpotService
 
@@ -15,8 +16,8 @@ class TokenExchangeRequest(BaseModel):
 
 class ConnectionStatusResponse(BaseModel):
     connected: bool
-    portal_id: str | None = None
-    error: str | None = None
+    portal_id: Optional[str] = None
+    error: Optional[str] = None
 
 
 @router.post("/exchange-token")

@@ -1,4 +1,5 @@
 """Salesforce merge operations service."""
+from __future__ import annotations
 import httpx
 import asyncio
 from typing import Optional
@@ -45,26 +46,28 @@ class SalesforceMergeService:
         # For more, we need to do multiple merge calls
 
         async with httpx.AsyncClient() as client:
-            for merge_id in merge_ids[:2]:  # Salesforce limit
-                response = await client.post(
-                    f"{self.instance_url}/services/data/v59.0/sobjects/Contact/{master_id}/merge",
-                    headers={
-                        "Authorization": f"Bearer {self.access_token}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "masterRecord": {"Id": master_id},
-                        "recordToMergeIds": [merge_id],
-                    },
-                )
+            # Salesforce Merge REST API: POST /sobjects/Contact/merge
+            # Body: masterRecord with Id, plus up to 2 recordToMergeIds
+            batch = merge_ids[:2]  # Salesforce allows max 2 per call
+            response = await client.post(
+                f"{self.instance_url}/services/data/v59.0/sobjects/Contact/merge",
+                headers={
+                    "Authorization": f"Bearer {self.access_token}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "masterRecord": {"Id": master_id},
+                    "recordToMergeIds": batch,
+                },
+            )
 
-                if response.status_code not in [200, 201, 204]:
-                    return {
-                        "success": False,
-                        "error": f"Salesforce merge failed: {response.status_code} - {response.text}",
-                    }
+            if response.status_code not in [200, 201, 204]:
+                return {
+                    "success": False,
+                    "error": f"Salesforce merge failed: {response.status_code} - {response.text}",
+                }
 
-                await asyncio.sleep(self.RATE_LIMIT_DELAY)
+            await asyncio.sleep(self.RATE_LIMIT_DELAY)
 
         # If more than 2 merge_ids, recursively merge remaining
         if len(merge_ids) > 2:

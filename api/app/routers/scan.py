@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.services.supabase_client import get_supabase
 from app.services.crm_factory import get_crm_services
@@ -40,7 +40,7 @@ async def run_scan(scan_id: str, user_id: str, connection_id: str, config: dict)
         # Update status to running
         supabase.table("scans").update({
             "status": "running",
-            "started_at": datetime.utcnow().isoformat(),
+            "started_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", scan_id).execute()
 
         # Get CRM services based on connection type
@@ -116,7 +116,7 @@ async def run_scan(scan_id: str, user_id: str, connection_id: str, config: dict)
             "status": "completed",
             "progress": 100,
             "duplicates_found": len(duplicate_sets),
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", scan_id).execute()
 
     except Exception as e:
@@ -124,7 +124,7 @@ async def run_scan(scan_id: str, user_id: str, connection_id: str, config: dict)
         supabase.table("scans").update({
             "status": "failed",
             "error_message": str(e),
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", scan_id).execute()
         raise
 

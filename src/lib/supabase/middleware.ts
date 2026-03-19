@@ -34,8 +34,10 @@ export async function updateSession(request: NextRequest) {
   // issues with users being randomly logged out.
 
   // If there's a code param, redirect to auth callback to exchange it
+  // Skip API routes — HubSpot/Salesforce OAuth callbacks also receive ?code=
   const code = request.nextUrl.searchParams.get('code')
-  if (code && request.nextUrl.pathname !== '/auth/callback') {
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
+  if (code && !isApiRoute && request.nextUrl.pathname !== '/auth/callback') {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/callback'
     return NextResponse.redirect(url)
@@ -49,7 +51,8 @@ export async function updateSession(request: NextRequest) {
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/scan') ||
     request.nextUrl.pathname.startsWith('/review') ||
     request.nextUrl.pathname.startsWith('/reports') ||
-    request.nextUrl.pathname.startsWith('/connect')
+    request.nextUrl.pathname.startsWith('/connect') ||
+    request.nextUrl.pathname.startsWith('/merge')
 
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone()

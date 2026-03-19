@@ -1,6 +1,6 @@
 """HubSpot API service for OAuth and CRM operations."""
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from pydantic import BaseModel
 
@@ -109,7 +109,7 @@ class HubSpotService:
         portal_id: str
     ) -> dict:
         """Save or update HubSpot connection for a user."""
-        expires_at = datetime.utcnow() + timedelta(seconds=tokens.expires_in)
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=tokens.expires_in)
 
         # Encrypt tokens before storing
         encrypted_access = encrypt_token(tokens.access_token)
@@ -143,7 +143,7 @@ class HubSpotService:
         expires_at = datetime.fromisoformat(conn["expires_at"].replace("Z", "+00:00"))
 
         # Check if token needs refresh (5 min buffer)
-        if expires_at < datetime.utcnow() + timedelta(minutes=5):
+        if expires_at < datetime.now(timezone.utc) + timedelta(minutes=5):
             # Decrypt and refresh
             refresh_token = decrypt_token(conn["refresh_token_encrypted"])
             new_tokens = await self.refresh_tokens(refresh_token)
@@ -155,7 +155,7 @@ class HubSpotService:
                 portal_id=conn["portal_id"],
                 access_token=new_tokens.access_token,
                 refresh_token=new_tokens.refresh_token,
-                expires_at=datetime.utcnow() + timedelta(seconds=new_tokens.expires_in),
+                expires_at=datetime.now(timezone.utc) + timedelta(seconds=new_tokens.expires_in),
             )
 
         # Decrypt and return existing

@@ -1,4 +1,5 @@
 """Contact data models for deduplication."""
+from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional, Any
 from datetime import datetime

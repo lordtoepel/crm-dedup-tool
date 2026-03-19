@@ -1,4 +1,5 @@
 """Application configuration from environment variables."""
+from __future__ import annotations
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -28,7 +29,10 @@ class Settings(BaseSettings):
 
     # App settings
     environment: str = "development"
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "https://crm-dedup-tool.netlify.app",
+    ]
 
     class Config:
         env_file = ".env"

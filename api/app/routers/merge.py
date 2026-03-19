@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.services.supabase_client import get_supabase
 from app.services.crm_factory import get_crm_services
@@ -27,7 +27,7 @@ async def run_merge(merge_id: str, user_id: str, scan_id: str, set_ids: List[str
         # Update status to running
         supabase.table("merges").update({
             "status": "running",
-            "started_at": datetime.utcnow().isoformat(),
+            "started_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", merge_id).execute()
 
         # Get scan to find connection_id
@@ -54,7 +54,7 @@ async def run_merge(merge_id: str, user_id: str, scan_id: str, set_ids: List[str
         if total_sets == 0:
             supabase.table("merges").update({
                 "status": "completed",
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", merge_id).execute()
             return
 
@@ -118,7 +118,7 @@ async def run_merge(merge_id: str, user_id: str, scan_id: str, set_ids: List[str
 
         supabase.table("merges").update({
             "status": final_status,
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", merge_id).execute()
 
     except Exception as e:
@@ -126,7 +126,7 @@ async def run_merge(merge_id: str, user_id: str, scan_id: str, set_ids: List[str
         supabase.table("merges").update({
             "status": "failed",
             "error_log": [{"set_id": "system", "error": str(e)}],
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", merge_id).execute()
         raise
 
@@ -249,7 +249,7 @@ async def resume_merge(merge_id: str, background_tasks: BackgroundTasks):
         # Already complete
         supabase.table("merges").update({
             "status": "completed",
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", merge_id).execute()
         return {"success": True, "status": "completed"}
 

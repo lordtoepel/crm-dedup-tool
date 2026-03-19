@@ -1,6 +1,6 @@
 """Salesforce API service for OAuth and CRM operations."""
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from pydantic import BaseModel
 
@@ -88,7 +88,7 @@ class SalesforceService:
                 access_token=data["access_token"],
                 refresh_token=refresh_token,  # Salesforce doesn't always return new refresh token
                 instance_url=data["instance_url"],
-                issued_at=int(data.get("issued_at", datetime.utcnow().timestamp() * 1000)),
+                issued_at=int(data.get("issued_at", datetime.now(timezone.utc).timestamp() * 1000)),
             )
 
     async def get_org_id(self, access_token: str, instance_url: str) -> str:
@@ -120,7 +120,7 @@ class SalesforceService:
     ) -> dict:
         """Save or update Salesforce connection for a user."""
         # Salesforce tokens don't have explicit expiry, but we refresh proactively
-        expires_at = datetime.utcnow() + timedelta(hours=2)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=2)
 
         # Encrypt tokens before storing
         encrypted_access = encrypt_token(tokens.access_token)
@@ -162,7 +162,7 @@ class SalesforceService:
 
         # Check if token might need refresh (1 hour buffer)
         expires_at = datetime.fromisoformat(conn["expires_at"].replace("Z", "+00:00"))
-        if expires_at < datetime.utcnow() + timedelta(hours=1):
+        if expires_at < datetime.now(timezone.utc) + timedelta(hours=1):
             # Decrypt and refresh
             refresh_token = decrypt_token(conn["refresh_token_encrypted"])
             try:

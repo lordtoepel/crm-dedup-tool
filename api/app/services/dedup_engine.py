@@ -3,6 +3,7 @@ Core deduplication engine with blocking and fuzzy matching.
 
 This is the heart of the duplicate detection system.
 """
+from __future__ import annotations
 from collections import defaultdict
 from typing import Optional
 from rapidfuzz import fuzz
@@ -328,8 +329,10 @@ class FieldBlender:
     """
 
     # Fields that can be filled from losers if winner's is blank
+    # These use the Contact model field names; CRM-specific property name
+    # mapping happens in the merge services (hubspot_merge / salesforce_merge).
     FILLABLE_FIELDS = [
-        "phone", "company", "job_title",
+        "phone", "company", "jobtitle",
         # Add more as needed
     ]
 

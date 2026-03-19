@@ -1,4 +1,5 @@
 """HubSpot merge operations service."""
+from __future__ import annotations
 import httpx
 import asyncio
 from typing import Optional

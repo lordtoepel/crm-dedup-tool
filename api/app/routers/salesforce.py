@@ -1,6 +1,7 @@
 """Salesforce OAuth and API endpoints."""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 
 from app.services.salesforce import SalesforceService
 
@@ -15,9 +16,9 @@ class TokenExchangeRequest(BaseModel):
 
 class ConnectionStatusResponse(BaseModel):
     connected: bool
-    org_id: str | None = None
-    instance_url: str | None = None
-    error: str | None = None
+    org_id: Optional[str] = None
+    instance_url: Optional[str] = None
+    error: Optional[str] = None
 
 
 @router.post("/exchange-token")

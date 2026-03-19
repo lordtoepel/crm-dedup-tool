@@ -3,8 +3,9 @@ CRM Deduplication Tool - Python Backend
 FastAPI application for duplicate detection and merge operations.
 """
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.cors import CORSMiddleware
 
+from app.config import get_settings
 from app.routers import health, scan, merge, hubspot, salesforce, reports
 
 app = FastAPI(
@@ -13,14 +14,13 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS configuration - update for production
+settings = get_settings()
+
+# CORS: use exact origins from config + regex for Netlify preview deploys
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Next.js dev
-        "https://crm-dedup-tool.netlify.app",  # Production
-        "https://*.netlify.app",  # Netlify preview/deploy previews
-    ],
+    allow_origins=settings.cors_origins,
+    allow_origin_regex=r"https://[a-z0-9\-]+--crm-dedup-tool\.netlify\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

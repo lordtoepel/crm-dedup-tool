@@ -15,9 +15,11 @@ interface CrmConnection {
 interface ConnectClientProps {
   user: User
   existingConnection: CrmConnection | null
+  oauthError?: string
+  oauthSuccess?: boolean
 }
 
-export default function ConnectClient({ user, existingConnection }: ConnectClientProps) {
+export default function ConnectClient({ user, existingConnection, oauthError, oauthSuccess }: ConnectClientProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
@@ -28,10 +30,6 @@ export default function ConnectClient({ user, existingConnection }: ConnectClien
     const scopes = [
       'crm.objects.contacts.read',
       'crm.objects.contacts.write',
-      'crm.objects.companies.read',
-      'crm.objects.companies.write',
-      'crm.objects.deals.read',
-      'crm.objects.deals.write',
     ].join(' ')
 
     const authUrl = `https://app.hubspot.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}`
@@ -51,13 +49,17 @@ export default function ConnectClient({ user, existingConnection }: ConnectClien
 
   const handleDisconnect = async () => {
     if (!existingConnection) return
+    if (!confirm('Are you sure you want to disconnect your CRM?')) return
     setIsLoading(true)
 
-    const supabase = createClient()
-    await supabase
-      .from('crm_connections')
-      .delete()
-      .eq('id', existingConnection.id)
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      await fetch(`${apiUrl}/${existingConnection.crm_type}/disconnect/${user.id}`, {
+        method: 'DELETE',
+      })
+    } catch (error) {
+      console.error('Failed to disconnect:', error)
+    }
 
     router.refresh()
     setIsLoading(false)
@@ -85,6 +87,23 @@ export default function ConnectClient({ user, existingConnection }: ConnectClien
             Sign out
           </button>
         </div>
+
+        {/* OAuth Feedback */}
+        {oauthError && (
+          <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg mb-6">
+            <p className="font-medium">Connection failed</p>
+            <p className="text-sm mt-1">
+              {oauthError === 'token_exchange_failed'
+                ? 'Failed to connect to your CRM. Please try again.'
+                : oauthError}
+            </p>
+          </div>
+        )}
+        {oauthSuccess && !oauthError && (
+          <div className="bg-green-50 border border-green-200 text-green-800 p-4 rounded-lg mb-6">
+            <p className="font-medium">CRM connected successfully!</p>
+          </div>
+        )}
 
         {/* Connection Status */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">

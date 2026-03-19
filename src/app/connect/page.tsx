@@ -2,7 +2,11 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import ConnectClient from './ConnectClient'
 
-export default async function ConnectPage() {
+export default async function ConnectPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; connected?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -17,5 +21,14 @@ export default async function ConnectPage() {
     .eq('user_id', user.id)
     .single()
 
-  return <ConnectClient user={user} existingConnection={connection} />
+  const { error, connected } = await searchParams
+
+  return (
+    <ConnectClient
+      user={user}
+      existingConnection={connection}
+      oauthError={error}
+      oauthSuccess={!!connected}
+    />
+  )
 }

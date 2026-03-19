@@ -3,8 +3,25 @@ from datetime import datetime
 from typing import Optional
 import io
 
-from weasyprint import HTML, CSS
 from app.services.supabase_client import get_supabase
+
+# WeasyPrint requires GTK system libraries (gobject, pango).
+# Import lazily so the app starts without them; PDF generation
+# will fail with a clear error if the libs are missing.
+_weasyprint = None
+
+def _get_weasyprint():
+    global _weasyprint
+    if _weasyprint is None:
+        try:
+            import weasyprint as wp
+            _weasyprint = wp
+        except OSError as e:
+            raise RuntimeError(
+                "WeasyPrint requires GTK system libraries. "
+                "Install them (e.g., brew install pango on macOS) or use Docker."
+            ) from e
+    return _weasyprint
 
 
 class ReportService:
@@ -131,8 +148,9 @@ class ReportService:
         html_content = self._generate_html(report)
 
         # Convert to PDF
-        pdf_bytes = HTML(string=html_content).write_pdf(
-            stylesheets=[CSS(string=self._get_pdf_styles())]
+        wp = _get_weasyprint()
+        pdf_bytes = wp.HTML(string=html_content).write_pdf(
+            stylesheets=[wp.CSS(string=self._get_pdf_styles())]
         )
 
         return pdf_bytes
