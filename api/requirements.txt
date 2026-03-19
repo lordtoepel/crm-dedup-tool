@@ -11,12 +11,10 @@ redis==5.0.1
 rapidfuzz==3.6.1
 
 # Database
-supabase==2.3.5
-asyncpg==0.29.0
+supabase==2.3.0
 
 # HTTP client for CRM APIs
 httpx==0.25.2
-aiohttp==3.9.3
 
 # Encryption
 cryptography==42.0.2
